@@ -1,9 +1,9 @@
 from typing import Any, List
 import requests
 
-API_URL = "https://estate-show.onrender.com/api/customers/"
-TOUR_URL = "https://estate-show.onrender.com/api/tours/"
-PROPERTY_URL = "https://estate-show.onrender.com/api/properties/"
+API_URL = "https://estate-r22a.onrender.com/api/customers/"
+TOUR_URL = "https://estate-r22a.onrender.com/api/tours/"
+PROPERTY_URL = "https://estate-r22a.onrender.com/api/properties/"
 
 
 def register_user(telegram_id: str, full_name: str) -> dict:
