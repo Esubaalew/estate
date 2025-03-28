@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% block title %}Add Property | Real Estate App{% endblock %}
+{% block content %}
+<div class="container my-5">
+   <div class="row justify-content-center">
+      <div class="col-lg-10">
+         <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card-header bg-primary text-white">
+               <h2 class="text-center mb-0">Add Your Property</h2>
+            </div>
+            <div class="card-body">
+               <!-- Progress Bar -->
+               <div class="progress mb-4" style="height: 10px;">
+                  <div class="progress-bar bg-success" role="progressbar" id="progressBar" style="width: 20%;" aria-valuemin="0" aria-valuemax="100"></div>
+               </div>
+               <form id="propertyForm" method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                  {% csrf_token %}
+                  <input type="hidden" id="profile_token" name="profile_token" value="{{ profile_token }}">
+                  <!-- Step 1: Basic Info -->
+                  <div class="form-step" id="step1">
+                     <h3 class="text-primary mb-4">Basic Information</h3>
+                     <div class="row g-3">
+                        <div class="col-md-6">
+                           <label class="form-label">Name</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-home"></i></span>
+                              <input type="text" name="name" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a name for the property.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Status</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-tag"></i></span>
+                              <select name="for_property" class="form-select" required>
+                                 <option value="" selected disabled>Choose...</option>
+                                 <option value="sale">For Sale</option>
+                                 <option value="rent">For Rent</option>
+                                 <option value="investment">For Investment</option>
+                              </select>
+                           </div>
+                           <div class="invalid-feedback">Please select a property type.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Type</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-building"></i></span>
+                              <select name="type_property" class="form-select" required>
+                                 <option value="" selected disabled>Choose...</option>
+                                 <option value="residential">Residential</option>
+                                 <!--<option value="commercial">Commercial</option>-->
+                                 <!--<option value="lease">Lease</option>-->
+                              </select>
+                           </div>
+                           <div class="invalid-feedback">Please select a property type.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Residential</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-briefcase"></i></span>
+                              <select name="usage" class="form-select" required>
+                                 <option value="" selected disabled>Choose...</option>
+                                 <option value="villa">Villa</option>
+                                 <option value="apartment">Apartment</option>
+                                 <option value="duplex">Duplex</option>
+                                 <option value="condominium">Condominium</option>
+                                 <option value="townhouse">Townhouse</option>
+                                 <option value="other">Other</option>
+                              </select>
+                           </div>
+                           <div class="invalid-feedback">Please select a usage type.</div>
+                        </div>
+                     </div>
+                     <div class="mt-4 text-end">
+                        <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+                     </div>
+                  </div>
+                  <!-- Step 2: Area and Location -->
+                  <div class="form-step" id="step2" style="display: none;">
+                     <h3 class="text-primary mb-4">Area and Location</h3>
+                     <div class="row g-3">
+                        <div class="col-md-6">
+                           <label class="form-label">Country</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-globe"></i></span>
+                              <input type="text" name="country" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a country.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Region</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-map"></i></span>
+                              <input type="text" name="region" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a region.</div>
+                        </div>
+                        <div class="col-md-4">
+                           <label class="form-label">City</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-city"></i></span>
+                              <input type="text" name="city" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a city.</div>
+                        </div>
+                        <div class="col-md-4">
+                           <label class="form-label">Subcity/Zone</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
+                              <input type="text" name="subcity_zone" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a subcity/zone.</div>
+                        </div>
+                        <div class="col-md-4">
+                           <label class="form-label">Woreda</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-map-pin"></i></span>
+                              <input type="text" name="woreda" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a woreda.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Address</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-address-card"></i></span>
+                              <input type="text" name="address" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide an address.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Floor Level</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-level-up-alt"></i></span>
+                              <input type="text" name="floor_level" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a floor level.</div>
+                        </div>
+                        <div class="col-md-4">
+                           <label class="form-label">Total Area (m²)</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-ruler-combined"></i></span>
+                              <input type="number" name="total_area" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the total area.</div>
+                        </div>
+                        <div class="col-md-4">
+                           <label class="form-label">Area for Sale/Rent (m²)</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-vector-square"></i></span>
+                              <input type="number" name="area" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the area.</div>
+                        </div>
+                        <div class="col-md-4">
+                           <label class="form-label">Google Map Link</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-map-marked-alt"></i></span>
+                              <input type="url" name="google_map_link" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide a valid Google Map link.</div>
+                        </div>
+                     </div>
+                     <div class="mt-4">
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Previous</button>
+                        <button type="button" class="btn btn-primary float-end" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+                     </div>
+                  </div>
+                  <!-- Step 3: Room Details -->
+                  <div class="form-step" id="step3" style="display: none;">
+                     <h3 class="text-primary mb-4">Room Details</h3>
+                     <div class="row g-3">
+                        <div class="col-md-3">
+                           <label class="form-label">Living Rooms</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-couch"></i></span>
+                              <input type="number" name="living_rooms" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the number of living rooms.</div>
+                        </div>
+                        <div class="col-md-3">
+                           <label class="form-label">Bedrooms</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-bed"></i></span>
+                              <input type="number" name="bedrooms" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the number of bedrooms.</div>
+                        </div>
+                        <div class="col-md-3">
+                           <label class="form-label">Bathrooms</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-bath"></i></span>
+                              <input type="number" name="bathrooms" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the number of bathrooms.</div>
+                        </div>
+                        <div class="col-md-3">
+                           <label class="form-label">Kitchens</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-utensils"></i></span>
+                              <input type="number" name="kitchens" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the number of kitchens.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Built In</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
+                              <input type="date" name="built_date" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the built date.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Number of Balconies</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-archway"></i></span>
+                              <input type="number" name="number_of_balconies" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the number of balconies.</div>
+                        </div>
+                     </div>
+                     <div class="mt-4">
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Previous</button>
+                        <button type="button" class="btn btn-primary float-end" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+                     </div>
+                  </div>
+                  <!-- Step 4: Pricing -->
+                  <div class="form-step" id="step4" style="display: none;">
+                     <h3 class="text-primary mb-4">Pricing</h3>
+                     <div class="row g-3">
+                        <div class="col-md-6">
+                           <label class="form-label">Average Price Per Square Meter</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-dollar-sign"></i></span>
+                              <input type="number" name="average_price_per_square_meter" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the average price per square meter.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Selling Price</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-tag"></i></span>
+                              <input type="number" name="selling_price" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the selling price.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Computing Price</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-calculator"></i></span>
+                              <input type="number" name="computing_price" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the computing price.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Monthly Rent (If applicable)</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-money-bill-wave
+                                 "></i></span>
+                              <input type="number" name="monthly_rent" class="form-control" >
+                           </div>
+                           <div class="invalid-feedback">Please provide the monthly rent.</div>
+                        </div>
+                     </div>
+                     <div class="mt-4">
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Previous</button>
+                        <button type="button" class="btn btn-primary float-end" onclick="nextStep()">Next <i class="fas fa-arrow-right"></i></button>
+                     </div>
+                  </div>
+                  <!-- Step 5: Features and Media -->
+                  <div class="form-step" id="step5" style="display: none;">
+                     <h3 class="text-primary mb-4">Features and Media</h3>
+                     <div class="row g-3">
+                        <div class="col-md-12">
+                           <label class="form-label">Features and Amenities</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-cogs"></i></span>
+                              <select name="features_and_amenities" class="form-select" required>
+                                 <option value="" selected disabled>Choose...</option>
+                                 <option value="finished">Finished</option>
+                                 <option value="semi_finished">Semi-finished</option>
+                                 <option value="furnished">Furnished</option>
+                              </select>
+                           </div>
+                           <div class="invalid-feedback">Please select features and amenities.</div>
+                        </div>
+                        <!-- Kitchen Appliances Dropdown -->
+                        <div class="col-md-6">
+                           <label class="form-label">Kitchen Appliances</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-cogs"></i></span>
+                              <select name="kitchen_appliances" class="form-select" >
+                                 <option value="" selected disabled>Choose...</option>
+                                 <option value="oven">Oven</option>
+                                 <option value="fridge">Fridge</option>
+                                 <option value="microwave">Microwave</option>
+                                 <option value="dishwasher">Dishwasher</option>
+                                 <option value="other">Other</option>
+                              </select>
+                           </div>
+                        </div>
+                        <!-- Laundry Facilities Dropdown -->
+                        <div class="col-md-6">
+                           <label class="form-label">Laundry Facilities</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-cogs"></i></span>
+                              <select name="laundry_facilities" class="form-select" >
+                                 <option value="" selected disabled>Choose...</option>
+                                 <option value="washing_machine">Washing Machine</option>
+                                 <option value="dryer">Dryer</option>
+                                 <option value="other">Other</option>
+                              </select>
+                           </div>
+                        </div>
+                        <!-- Optional Textarea for 'Other' Option in Kitchen Appliances or Laundry Facilities -->
+                        <div class="col-md-6">
+                           <label class="form-label">Other Details (if any)</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-pencil-alt"></i></span>
+                              <textarea name="other_details" class="form-control" rows="3"></textarea>
+                           </div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Heating Type</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-fire"></i></span>
+                              <select name="heating_type" class="form-select" required>
+                                 <option value="" disabled selected>Select Heating Type</option>
+                                 <option value="gas">Gas</option>
+                                 <option value="electric">Electric</option>
+                              </select>
+                           </div>
+                           <div class="invalid-feedback">Please select a heating type.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Cooling</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-snowflake"></i></span>
+                              <select name="cooling" class="form-select" required>
+                                 <option value="" disabled selected>Select Cooling Type</option>
+                                 <option value="AC">AC</option>
+                                 <option value="electric">Electric</option>
+                              </select>
+                           </div>
+                           <div class="invalid-feedback">Please select a cooling type.</div>
+                        </div>
+                        <div class="col-md-12">
+                           <label class="form-label">Nearest Residential</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-home"></i></span>
+                              <input type="text" name="nearest_residential" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please provide the nearest residential area.</div>
+                        </div>
+                        <div class="col-md-12">
+                           <label class="form-label">Own Description</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-pen"></i></span>
+                              <textarea name="own_description" class="form-control" rows="3" required></textarea>
+                           </div>
+                           <div class="invalid-feedback">Please provide your own description.</div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Link to Video or Image</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-link"></i></span>
+                              <input type="url" name="link_to_video_or_image" class="form-control">
+                           </div>
+                        </div>
+                        <div class="col-md-6">
+                           <label class="form-label">Ownership Document</label>
+                           <div class="input-group">
+                              <span class="input-group-text"><i class="fas fa-file-upload"></i></span>
+                              <input type="file" name="ownership_of_property" class="form-control" required>
+                           </div>
+                           <div class="invalid-feedback">Please upload the ownership document.</div>
+                        </div>
+                     </div>
+                     <div class="mt-4">
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()"><i class="fas fa-arrow-left"></i> Previous</button>
+                        <button type="submit" class="btn btn-success float-end"><i class="fas fa-check"></i> Submit</button>
+                     </div>
+                  </div>
+               </form>
+            </div>
+         </div>
+      </div>
+   </div>
+</div>
+<script>
+   let currentStep = 0;
+   const steps = document.querySelectorAll('.form-step');
+   const progressBar = document.getElementById('progressBar');
+   
+   function showStep(step) {
+       steps.forEach((s, index) => {
+           s.style.display = index === step ? 'block' : 'none';
+       });
+       updateProgressBar(step);
+   }
+   
+   function nextStep() {
+       if (currentStep < steps.length - 1) {
+           currentStep++;
+           showStep(currentStep);
+       }
+   }
+   
+   function prevStep() {
+       if (currentStep > 0) {
+           currentStep--;
+           showStep(currentStep);
+       }
+   }
+   
+   function updateProgressBar(step) {
+       const progress = ((step + 1) / steps.length) * 100;
+       progressBar.style.width = progress + '%';
+       progressBar.setAttribute('aria-valuenow', progress);
+   }
+   
+   // Form validation
+   (function () {
+       'use strict'
+       var forms = document.querySelectorAll('.needs-validation')
+       Array.prototype.slice.call(forms)
+           .forEach(function (form) {
+               form.addEventListener('submit', function (event) {
+                   if (!form.checkValidity()) {
+                       event.preventDefault()
+                       event.stopPropagation()
+                   }
+                   form.classList.add('was-validated')
+               }, false)
+           })
+   })()
+   
+   // Initial setup
+   showStep(currentStep);
+   
+   document.addEventListener('DOMContentLoaded', function() {
+       const profileToken = localStorage.getItem('profile_token');
+       if (profileToken) {
+           document.getElementById('profile_token').value = profileToken;
+       }
+   });
+</script>
+{% endblock %}

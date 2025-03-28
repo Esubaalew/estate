@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Profile | Real Estate App{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0 rounded-lg">
+                <div class="card-header bg-primary text-white text-center py-4">
+                    <h1 class="display-5 mb-0">Edit Your Profile</h1>
+                    <p class="lead mb-0">Update your information to get the most out of our Real Estate App</p>
+                </div>
+                <div class="card-body">
+                    <!-- Display error message if available -->
+                    {% if error %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+                        </div>
+                    {% endif %}
+
+                    <div class="alert alert-info shadow-sm" role="alert">
+                        <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Available Data:</h5>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Telegram ID:</strong> <span class="badge bg-secondary">{{ telegram_id }}</span></p>
+                                <p><strong>User Type:</strong> <span class="badge bg-primary">{{ user_type }}</span></p>
+                                <p><strong>Verification Status:</strong>
+                                    {% if is_verified %}
+                                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Verified</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Not Verified</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                {% if full_name %}
+                                    <p><strong>Full Name:</strong> {{ full_name }}</p>
+                                {% endif %}
+                                <p><strong>Email:</strong> <span>{{ email|default:"Not provided" }}</span></p>
+                                <p><strong>Phone Number:</strong> <span>{{ phone_number|default:"Not provided" }}</span></p>
+                                {% if address %}
+                                    <p><strong>Address:</strong> {{ address }}</p>
+                                {% endif %}
+                                {% if legal_document %}
+                                    <p><strong>Legal Document:</strong> <i class="fas fa-file-alt text-success"></i> Received</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="POST" enctype="multipart/form-data" class="mt-4" id="profileForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="telegram_id" value="{{ telegram_id }}">
+
+                        <div class="mb-3">
+                            <label for="full_name" class="form-label"><i class="fas fa-user me-2"></i>Full Name</label>
+                            <input type="text" class="form-control" id="full_name" name="full_name" value="{{ full_name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label"><i class="fas fa-envelope me-2"></i>Email (Optional)</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ email|default:"" }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="phone_number" class="form-label"><i class="fas fa-phone me-2"></i>Phone Number</label>
+                            <input type="text" class="form-control" id="phone_number" name="phone_number" value="{{ phone_number|default:"" }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label"><i class="fas fa-map-marker-alt me-2"></i>Address</label>
+                            <textarea class="form-control" id="address" name="address" rows="3">{{ address }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="user_type" class="form-label"><i class="fas fa-users me-2"></i>User Type</label>
+                            <select class="form-select" id="user_type" name="user_type">
+                                <option value="user" {% if user_type == "user" %}selected{% endif %}>User</option>
+                                <option value="agent" {% if user_type == "agent" %}selected{% endif %}>Agent</option>
+                                <option value="owner" {% if user_type == "owner" %}selected{% endif %}>Owner</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="legal_document_container" style="display: none;">
+                            <label for="legal_document" class="form-label"><i class="fas fa-file-alt me-2"></i>Legal Document</label>
+                            <input type="file" class="form-control" id="legal_document" name="legal_document">
+                        </div>
+
+                        {% if user_type == "owner" or user_type == "agent" %}
+                        <div class="mb-3" id="add_property_container">
+                            <a href="{% url 'add_property' %}?profile_token={{ profile_token }}" id="add_property_link" class="btn btn-success btn-lg w-100">
+                                <i class="fas fa-plus me-2"></i>Add Property
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="mb-3" id="add_property_container" style="display: none;">
+                            <a href="#" id="add_property_link" class="btn btn-success btn-lg w-100" style="display: none;">
+                                <i class="fas fa-plus me-2"></i>Add Property
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100"><i class="fas fa-save me-2"></i>Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Validation Messages -->
+<div class="modal fade" id="validationModal" tabindex="-1" aria-labelledby="validationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="validationModalLabel"><i class="fas fa-exclamation-circle me-2"></i>Validation Error</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modalMessage">
+                <!-- Error message will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Store the Profile Token in session storage when the web app loads
+    window.onload = function() {
+        const profileToken = "{{ profile_token }}"; // Get from view context
+        if (profileToken) {
+            sessionStorage.setItem("profile_token", profileToken);
+        }
+    };
+
+    document.getElementById("user_type").addEventListener("change", function() {
+        const legalDocumentContainer = document.getElementById("legal_document_container");
+        const addPropertyContainer = document.getElementById("add_property_container");
+        const addPropertyLink = document.getElementById("add_property_link");
+
+        // Show legal document for owners only
+        if (this.value === "owner") {
+            legalDocumentContainer.style.display = "block";
+            addPropertyContainer.style.display = "block";
+            addPropertyLink.style.display = "block";
+        } else if (this.value === "agent") {
+            legalDocumentContainer.style.display = "none";
+            addPropertyContainer.style.display = "block";
+            addPropertyLink.style.display = "block";
+        } else {
+            legalDocumentContainer.style.display = "none";
+            addPropertyContainer.style.display = "none";
+            addPropertyLink.style.display = "none";
+        }
+    });
+
+    document.getElementById("profileForm").addEventListener("submit", function(event) {
+        const fullNameField = document.getElementById("full_name");
+        const userType = document.getElementById("user_type").value;
+        const phoneField = document.getElementById("phone_number");
+        const documentField = document.getElementById("legal_document");
+        let errorMessage = '';
+
+        // Validate Full Name (required for all)
+        if (!fullNameField.value.trim()) {
+            errorMessage = "Full Name cannot be empty.";
+        } 
+        // Additional validation for specific user types
+        else if (userType === "agent" && !phoneField.value.trim()) {
+            errorMessage = "Phone Number is required for agents.";
+        } else if (userType === "owner") {
+            if (!phoneField.value.trim()) {
+                errorMessage = "Phone Number is required for owners.";
+            }
+            if (!documentField.files.length && !documentField.getAttribute('data-file-uploaded')) {
+                errorMessage = "Legal Document is required for owners.";
+            }
+        }
+
+        // If there's an error message, prevent form submission and show the modal
+        if (errorMessage) {
+            event.preventDefault();
+            document.getElementById("modalMessage").innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${errorMessage}`;
+            const validationModal = new bootstrap.Modal(document.getElementById("validationModal"));
+            validationModal.show();
+        }
+    });
+
+    // Trigger change event on page load to set initial state
+    document.getElementById("user_type").dispatchEvent(new Event("change"));
+</script>
+
+{% endblock %}
+

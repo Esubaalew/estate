@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block title %}Property Detail - {{ property.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <!-- Property Image -->
+        <div class="col-md-6">
+            <div class="card">
+                <img src="{{ property.image_url }}" class="card-img-top" alt="Property Image">
+            </div>
+        </div>
+
+        <!-- Property Details -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4>{{ property.name }}</h4>
+                </div>
+                <div class="card-body">
+                    <p><strong>Price:</strong> {{ property.price }} {{ property.currency }}</p>
+                    <p><strong>Location:</strong> {{ property.location }}</p>
+                    <p><strong>Description:</strong> {{ property.description }}</p>
+                    <p><strong>Bedrooms:</strong> {{ property.bedrooms }}</p>
+                    <p><strong>Bathrooms:</strong> {{ property.bathrooms }}</p>
+                    <p><strong>Size:</strong> {{ property.size }} m²</p>
+
+                    <!-- Call to Action -->
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="#" class="btn btn-success">Make Favorite</a>
+                        <a href="#" class="btn btn-primary">Request a Tour</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Property Info (Optional) -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h5>More Details</h5>
+            <p>{{ property.additional_info }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

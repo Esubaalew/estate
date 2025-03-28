@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}My Properties | Real Estate App{% endblock %}
+
+{% block content %}
+<div class="hero text-center">
+    <h1 class="display-4">My Properties</h1>
+    <p class="lead">Manage and view your real estate portfolio</p>
+</div>
+
+<div class="container">
+    {% if properties %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for property in properties %}
+                <div class="col">
+                    <div class="card h-100">
+                        <img src="https://source.unsplash.com/500x300/?property,house&sig={{ forloop.counter }}" class="card-img-top" alt="{{ property.name }}">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ property.name }}</h5>
+                            <p class="card-text">
+                                <span class="badge {% if property.status == 'confirmed' %}bg-success{% elif property.status == 'pending' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {{ property.get_status_display }}
+                                </span>
+                            </p>
+                            <a href="#" class="btn btn-primary"><i class="fas fa-info-circle me-2"></i>View Details</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-home fa-2x mb-3"></i></h5>
+                <h5 class="card-title">No Properties Found</h5>
+                <p class="card-text">You haven't added any properties to your portfolio yet.</p>
+                <a href="#" class="btn btn-primary"><i class="fas fa-plus me-2"></i>Add Your First Property</a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
