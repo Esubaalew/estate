@@ -3,64 +3,6 @@ from telegram.constants import ParseMode, ChatAction
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 import os
 import logging
-import aiohttp
-import asyncio
-from typing import Any, List, Optional
-from live.api import (create_message, get_all_requests, get_request_details, get_all_messages, create_request)
-
-# Set up logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# Initialize persistence
-persistence = PicklePersistence(filepath='bot_dat')
-PAGE_SIZE = 2
-
-# Define states for conversation flows
-FULL_NAME, PHONE_NUMBER, TOUR_DATE, TOUR_TIME = range(4)
-LIVE_REQUEST, LIVE_PHONE, LIVE_ADDRESS, LIVE_ADDITIONAL_TEXT = range(3, 7)
-RESPOND_TO_REQUEST, RESPONSE_MESSAGE = range(2)
-
-ADMINS = [1648265210]
-
-# API Configuration
-API_URL = "https://estate-r22a.onrender.com/api/customers/"
-TOUR_URL = "https://estate-r22a.onrender.com/api/tours/"
-PROPERTY_URL = "https://estate-r22a.onrender.com/api/properties/"
-FAVORITE_URL = "https://estate-r22a.onrender.com/api/favorites/"
-
-# Async HTTP Client
-async def make_async_request(method: str, url: str, **kwargs) -> Any:
-    """Generic async request handler with timeout and error handling"""
-    timeout = aiohttp.ClientTimeout(total=10)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.request(method, url, **kwargs) as response:
-            if response.status == 200 or response.status == 201:
-                return await response.json()
-            return None
-
-# Updated Async API Functions
-async def register_user(telegram_id: str, full_name: str) -> dict:
-    """Register a new user with the Telegram bot."""
-    data = {
-        "telegram_id": telegram_id,
-        "full_name": full_name,
-    }
-    result = await make_async_request('POST', API_URL, json=data)
-    if result:
-        return {"success": True, "message": f"Welcome, {full_name}!"}
-    return {"success": False, "message": "Registration failed. Please try again later."}
-
-async def is_user_registered(telegram_id: str) ->
-
-from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, MessageHandler, filters, PicklePersistence, CallbackQueryHandler
-from telegram.constants import ParseMode, ChatAction
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-import os
-import logging
 import asyncio
 from state.tools import (
     register_user, 
@@ -896,6 +838,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         logger.warning(f"Unknown action {data} received from user {telegram_id}")
         await query.edit_message_text("Unknown action. Please try again.")
+
     
 async def bot_tele(text):
     application = Application.builder().token(os.getenv('TOKEN')).persistence(persistence).build()
