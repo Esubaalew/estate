@@ -317,7 +317,7 @@ def register_tour_details(user_data: dict):
     }
 
     try:
-        response = requests.post("https://estate-show.onrender.com/api/tours/", json=data)
+        response = requests.post("https://estate-r22a.onrender.com/api/tours/", json=data)
         response.raise_for_status()
     except requests.HTTPError as e:
         logger.error(f"Failed to submit tour request: {e}")
@@ -350,7 +350,7 @@ async def handle_favorite_request(update: Update, context: ContextTypes.DEFAULT_
         # If the property is already a favorite, delete it
         if favorite_id:
             try:
-                response = requests.delete(f"https://estate-show.onrender.com/api/favorites/{favorite_id}/")
+                response = requests.delete(f"https://estate-r22a.onrender.com/api/favorites/{favorite_id}/")
                 response.raise_for_status()
 
                 await context.bot.send_message(
@@ -368,7 +368,7 @@ async def handle_favorite_request(update: Update, context: ContextTypes.DEFAULT_
         # If the property is not a favorite, add it
         else:
             try:
-                response = requests.post("https://estate-show.onrender.com/api/favorites/", json={
+                response = requests.post("https://estate-r22a.onrender.com/api/favorites/", json={
                     "property": property_id,
                     "customer": telegram_id
                 })
