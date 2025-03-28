@@ -3,26 +3,101 @@ from telegram.constants import ParseMode, ChatAction
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 import os
 import logging
-import requests
-from state.tools import register_user, is_user_registered, get_user_details, get_user_properties, get_user_tours, get_property_details, get_user_favorites, get_non_user_accounts, get_confirmed_user_properties
+import aiohttp
+import asyncio
+from typing import Any, List, Optional
 from live.api import (create_message, get_all_requests, get_request_details, get_all_messages, create_request)
+
 # Set up logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 # Initialize persistence
 persistence = PicklePersistence(filepath='bot_dat')
 PAGE_SIZE = 2
-# Define states for the conversation flow
+
+# Define states for conversation flows
 FULL_NAME, PHONE_NUMBER, TOUR_DATE, TOUR_TIME = range(4)
-
-# conversation states for live_agent
 LIVE_REQUEST, LIVE_PHONE, LIVE_ADDRESS, LIVE_ADDITIONAL_TEXT = range(3, 7)
-
-# Conversation states for the 'respond' command
 RESPOND_TO_REQUEST, RESPONSE_MESSAGE = range(2)
 
-ADMINS = [1648265210] 
+ADMINS = [1648265210]
+
+# API Configuration
+API_URL = "https://estate-r22a.onrender.com/api/customers/"
+TOUR_URL = "https://estate-r22a.onrender.com/api/tours/"
+PROPERTY_URL = "https://estate-r22a.onrender.com/api/properties/"
+FAVORITE_URL = "https://estate-r22a.onrender.com/api/favorites/"
+
+# Async HTTP Client
+async def make_async_request(method: str, url: str, **kwargs) -> Any:
+    """Generic async request handler with timeout and error handling"""
+    timeout = aiohttp.ClientTimeout(total=10)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.request(method, url, **kwargs) as response:
+            if response.status == 200 or response.status == 201:
+                return await response.json()
+            return None
+
+# Updated Async API Functions
+async def register_user(telegram_id: str, full_name: str) -> dict:
+    """Register a new user with the Telegram bot."""
+    data = {
+        "telegram_id": telegram_id,
+        "full_name": full_name,
+    }
+    result = await make_async_request('POST', API_URL, json=data)
+    if result:
+        return {"success": True, "message": f"Welcome, {full_name}!"}
+    return {"success": False, "message": "Registration failed. Please try again later."}
+
+async def is_user_registered(telegram_id: str) ->
+
+from telegram.ext import Application, CommandHandler, ContextTypes, ConversationHandler, MessageHandler, filters, PicklePersistence, CallbackQueryHandler
+from telegram.constants import ParseMode, ChatAction
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+import os
+import logging
+import asyncio
+from state.tools import (
+    register_user, 
+    is_user_registered, 
+    get_user_details, 
+    get_user_properties,
+    get_user_tours,
+    get_property_details,
+    get_user_favorites,
+    get_non_user_accounts,
+    get_confirmed_user_properties
+)
+from live.api import (
+    create_message,
+    get_all_requests,
+    get_request_details,
+    get_all_messages,
+    create_request
+)
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Initialize persistence
+persistence = PicklePersistence(filepath='bot_dat')
+PAGE_SIZE = 2
+
+# Define states for conversation flows
+FULL_NAME, PHONE_NUMBER, TOUR_DATE, TOUR_TIME = range(4)
+LIVE_REQUEST, LIVE_PHONE, LIVE_ADDRESS, LIVE_ADDITIONAL_TEXT = range(3, 7)
+RESPOND_TO_REQUEST, RESPONSE_MESSAGE = range(2)
+
+ADMINS = [1648265210]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start command with optional deep-linking for tour requests."""
@@ -40,17 +115,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Please provide your full name to start scheduling the tour.")
         return FULL_NAME
 
-    if is_user_registered(telegram_id):
-        user_details = get_user_details(telegram_id)
+    if await is_user_registered(telegram_id):
+        user_details = await get_user_details(telegram_id)
         if user_details:
             profile_token = user_details.get("profile_token")
-            await update.message.reply_text(f"Welcome back, {full_name}! Here are some quick options:", reply_markup=get_main_menu())
+            await update.message.reply_text(
+                f"Welcome back, {full_name}! Here are some quick options:",
+                reply_markup=get_main_menu()
+            )
         else:
             await update.message.reply_text("Could not retrieve your details. Please try again later.")
     else:
-        result = register_user(telegram_id, full_name)
+        result = await register_user(telegram_id, full_name)
         await update.message.reply_text(result["message"])
-        await update.message.reply_text("You’re registered! Here are some quick options:", reply_markup=get_main_menu())
+        await update.message.reply_text(
+            "You're registered! Here are some quick options:",
+            reply_markup=get_main_menu()
+        )
 
 def get_main_menu():
     """Generate the main menu inline keyboard with descriptive emojis."""
@@ -65,7 +146,7 @@ def get_main_menu():
         [InlineKeyboardButton("🌐 Change Language 🌍", callback_data="change_language")],
     ]
 
-    # Arrange buttons in two columns (except the last row)
+    # Arrange buttons in two columns
     formatted_buttons = []
     for i in range(0, len(buttons) - 1, 2):
         formatted_buttons.append(buttons[i] + buttons[i + 1])
@@ -74,74 +155,58 @@ def get_main_menu():
 
     return InlineKeyboardMarkup(formatted_buttons)
 
-
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Profile command to handle user profile viewing and editing."""
-
-    # Determine the source of the update (callback query or message)
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
+        await query.answer()
     else:
         telegram_id = str(update.message.from_user.id)
 
-    # Log and retrieve user details
     logger.info(f"Profile command triggered for user {telegram_id}")
-    user_details = get_user_details(telegram_id)
+    user_details = await get_user_details(telegram_id)
 
     if not user_details:
-        message = (
-            "Could not retrieve your details. Please make sure you're registered using /start."
-        )
+        message = "Could not retrieve your details. Please make sure you're registered using /start."
         if update.callback_query:
             await query.edit_message_text(message)
         else:
             await update.message.reply_text(message)
         return
 
-    # Generate the profile edit link
     profile_token = user_details.get("profile_token")
     web_app_url = f"https://t.me/yene_etbot/state?startapp=edit-{profile_token}"
-    message = (
-        "You can edit your profile using the following link (click to open):"
-    )
+    message = "You can edit your profile using the following link (click to open):"
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton("Edit Profile", url=web_app_url)]]
     )
 
-    # Send the response based on the source of the update
     if update.callback_query:
         await query.edit_message_text(message, reply_markup=reply_markup)
     else:
         await update.message.reply_text(message, reply_markup=reply_markup)
 
-
 async def addproperty(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Add property command to check if the user can add properties."""
-    # Determine the source of the update
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
+        await query.answer()
     else:
         telegram_id = str(update.message.from_user.id)
     
-    # Log and retrieve user details
     logger.info(f"addproperty triggered for user {telegram_id}")
-    user_details = get_user_details(telegram_id)
+    user_details = await get_user_details(telegram_id)
 
     if not user_details:
-        message = (
-            "Could not retrieve your details. Please make sure you're registered using /start."
-        )
+        message = "Could not retrieve your details. Please make sure you're registered using /start."
         if update.callback_query:
             await query.edit_message_text(message)
         else:
             await update.message.reply_text(message)
         return
 
-    # Check user type and profile token
     user_type = user_details.get("user_type")
     profile_token = user_details.get("profile_token")
 
@@ -157,9 +222,7 @@ async def addproperty(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     elif user_type in ['agent', 'owner']:
         web_app_url = f"https://t.me/yene_etbot/state?startapp=edit-{profile_token}"
-        message = (
-            "You have permission to add properties! Use the following link to proceed:"
-        )
+        message = "You have permission to add properties! Use the following link to proceed:"
         reply_markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton("Add Property", url=web_app_url)]]
         )
@@ -175,33 +238,26 @@ async def addproperty(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             await update.message.reply_text(message)
 
-
 async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Upgrade account command to handle user upgrades and profile management."""
-    
-    # Determine the source of the update (callback query or message)
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
+        await query.answer()
     else:
         telegram_id = str(update.message.from_user.id)
 
-    # Log and retrieve user details
     logger.info(f"Upgrade triggered for user {telegram_id}")
-    user_details = get_user_details(telegram_id)
+    user_details = await get_user_details(telegram_id)
 
     if not user_details:
-        message = (
-            "Could not retrieve your details. Please make sure you're registered using /start."
-        )
+        message = "Could not retrieve your details. Please make sure you're registered using /start."
         if update.callback_query:
             await query.edit_message_text(message)
         else:
             await update.message.reply_text(message)
         return
 
-    # Check user type and profile token
     user_type = user_details.get("user_type")
     profile_token = user_details.get("profile_token")
 
@@ -214,9 +270,7 @@ async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     elif user_type == 'user':
         web_app_url = f"https://t.me/yene_etbot/state?startapp=edit-{profile_token}"
-        message = (
-            "Account upgrades are irreversible. To upgrade your account, please visit your profile:"
-        )
+        message = "Account upgrades are irreversible. To upgrade your account, please visit your profile:"
         reply_markup = InlineKeyboardMarkup(
             [[InlineKeyboardButton("Edit Profile", url=web_app_url)]]
         )
@@ -232,8 +286,8 @@ async def upgrade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text(message)
 
-
 async def request_tour(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Start the tour request conversation."""
     command_parts = update.message.text.split("_")
 
     if len(command_parts) < 2:
@@ -247,11 +301,13 @@ async def request_tour(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return FULL_NAME
 
 async def get_full_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get the user's full name for tour request."""
     context.user_data['full_name'] = update.message.text
     await update.message.reply_text("Thanks! Now, please provide your phone number.")
     return PHONE_NUMBER
 
 async def get_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get the user's phone number for tour request."""
     context.user_data['phone_number'] = update.message.text
 
     days_keyboard = [
@@ -267,6 +323,7 @@ async def get_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return TOUR_DATE
 
 async def get_tour_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Get the tour date from user."""
     tour_date = update.message.text
     if tour_date not in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]:
         await update.message.reply_text("Invalid selection. Please select a valid day of the week.")
@@ -286,8 +343,8 @@ async def get_tour_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return TOUR_TIME
 
 async def get_tour_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.callback_query.answer()  # Acknowledge the callback
-
+    """Get the tour time and complete the request."""
+    await update.callback_query.answer()
     tour_time = update.callback_query.data
     try:
         tour_time = int(tour_time)
@@ -298,126 +355,58 @@ async def get_tour_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return TOUR_TIME
 
     context.user_data['tour_time'] = tour_time
-    register_tour_details(context.user_data)
-    await update.callback_query.edit_message_text("Your tour request has been submitted!")
-    return ConversationHandler.END
-
-def register_tour_details(user_data: dict):
-    telegram_id = str(user_data.get('telegram_id'))
-    username = user_data.get('username', '')  
+    telegram_id = str(update.callback_query.from_user.id)
+    username = update.callback_query.from_user.username or ""
 
     data = {
-        "property": user_data['property_id'],
-        "full_name": user_data['full_name'],
-        "phone_number": user_data['phone_number'],
-        "tour_date": user_data['tour_date'],
-        "tour_time": user_data['tour_time'],
-        "telegram_id": telegram_id,  # Add telegram_id to API data
-        "username": username  # Add username if available
+        "property": context.user_data['property_id'],
+        "full_name": context.user_data['full_name'],
+        "phone_number": context.user_data['phone_number'],
+        "tour_date": context.user_data['tour_date'],
+        "tour_time": context.user_data['tour_time'],
+        "telegram_id": telegram_id,
+        "username": username
     }
 
     try:
-        response = requests.post("https://estate-r22a.onrender.com/api/tours/", json=data)
-        response.raise_for_status()
-    except requests.HTTPError as e:
-        logger.error(f"Failed to submit tour request: {e}")
+        response = await create_request(data)
         if response:
-            logger.error(f"Response content: {response.text}")
-
-async def handle_favorite_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.callback_query.answer()
-    data = update.callback_query.data
-
-    if data.startswith("make_favorite_"):
-        property_id = int(data.split("_")[2])
-        telegram_id = str(update.callback_query.from_user.id)
-
-        # Fetch user favorites
-        favorites = get_user_favorites(telegram_id)
-        logger.info(f"User's favorites for {telegram_id}: {favorites}")
-
-        # Retrieve property details
-        property_details = get_property_details(property_id)
-        property_name = property_details.get('name', 'Unknown Property') if property_details else 'Unknown Property'
-
-        # Check if the property is already in favorites and get the favorite_id
-        favorite_id = None
-        for favorite in favorites:
-            if favorite['property'] == property_id:
-                favorite_id = favorite['id']  # Retrieve the favorite model ID
-                break
-
-        # If the property is already a favorite, delete it
-        if favorite_id:
-            try:
-                response = requests.delete(f"https://estate-r22a.onrender.com/api/favorites/{favorite_id}/")
-                response.raise_for_status()
-
-                await context.bot.send_message(
-                    chat_id=telegram_id,
-                    text=f"❌ The property *{property_name}* has been removed from your favorites."
-                )
-
-            except requests.HTTPError as e:
-                logger.error(f"Failed to remove property from favorites: {e}")
-                await context.bot.send_message(
-                    chat_id=telegram_id,
-                    text="❌ Failed to remove from favorites. Please try again later."
-                )
-
-        # If the property is not a favorite, add it
+            await update.callback_query.edit_message_text("Your tour request has been submitted!")
         else:
-            try:
-                response = requests.post("https://estate-r22a.onrender.com/api/favorites/", json={
-                    "property": property_id,
-                    "customer": telegram_id
-                })
-                response.raise_for_status()
+            await update.callback_query.edit_message_text("Failed to submit tour request. Please try again.")
+    except Exception as e:
+        logger.error(f"Failed to submit tour request: {e}")
+        await update.callback_query.edit_message_text("An error occurred while submitting your request. Please try again later.")
 
-                await context.bot.send_message(
-                    chat_id=telegram_id,
-                    text=f"🏡 The property *{property_name}* has been added to your favorites!"
-                )
-
-            except requests.HTTPError as e:
-                logger.error(f"Failed to add property to favorites: {e}")
-                await context.bot.send_message(
-                    chat_id=telegram_id,
-                    text="❌ Failed to add to favorites. Please try again later."
-                )
-
+    return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("The tour scheduling process has been canceled. Use /start to begin again.")
+    """Cancel the current conversation."""
+    await update.message.reply_text("The operation has been canceled. Use /start to begin again.")
     return ConversationHandler.END
-async def leave(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancels and ends the conversation."""
+
+async def leave(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancel and end the conversation."""
     await update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
+
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Please follow the instructions to schedule a tour or use /cancel to exit.")
+    """Handle unexpected input during conversations."""
+    await update.message.reply_text("Please follow the instructions or use /cancel to exit.")
 
 async def list_properties(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List properties associated with the user with pagination."""
-
-    # Determine the source of the update (callback query or message)
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
-        # Get the current page from the callback data or default to page 1
+        await query.answer()
         current_page = int(query.data.split(":")[1]) if ":" in query.data else 1
     else:
         telegram_id = str(update.message.from_user.id)
-        current_page = 1  # Default to the first page
+        current_page = 1
 
-    # Log the action
     logger.info(f"List properties triggered for user {telegram_id} on page {current_page}")
-
-    # Fetch the user's properties
-    properties = get_user_properties(telegram_id)
-
-
+    properties = await get_user_properties(telegram_id)
 
     if not properties:
         message = "🏡 You don't have any properties listed yet! Use /addproperty to add one."
@@ -427,17 +416,14 @@ async def list_properties(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await update.message.reply_text(message)
         return
 
-    # Calculate pagination
     start_index = (current_page - 1) * PAGE_SIZE
     end_index = start_index + PAGE_SIZE
     paginated_properties = properties[start_index:end_index]
 
-    # Prepare the response text
     response_text = "📝 Here are your properties:\n\n"
     for i, prop in enumerate(paginated_properties, start=start_index + 1):
         response_text += f"{i}. 📍 *{prop['name']}* - Status: *{prop['status']}*\n"
 
-    # Create pagination buttons
     buttons = []
     if current_page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"list_properties:{current_page - 1}"))
@@ -445,7 +431,6 @@ async def list_properties(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"list_properties:{current_page + 1}"))
     keyboard = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    # Send the response
     if update.callback_query:
         await query.edit_message_text(
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
@@ -455,29 +440,19 @@ async def list_properties(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
         )
 
-
-
 async def list_tours(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List tours associated with the user with pagination."""
-    
-    # Determine the source of the update (callback query or message)
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
-        # Get the current page from the callback data or default to page 1
+        await query.answer()
         current_page = int(query.data.split(":")[1]) if ":" in query.data else 1
     else:
         telegram_id = str(update.message.from_user.id)
-        current_page = 1  # Default to the first page
+        current_page = 1
 
-    # Log the action
     logger.info(f"List tours triggered for user {telegram_id} on page {current_page}")
-    
-
-
-    # Fetch the list of scheduled tours for the user
-    tours = get_user_tours(telegram_id)
+    tours = await get_user_tours(telegram_id)
     
     if not tours:
         message = "🚶‍♂️ You have no scheduled tours yet! Use /request_tour_<property_id> to schedule one."
@@ -487,23 +462,16 @@ async def list_tours(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             await update.message.reply_text(message)
         return
 
-    # Calculate pagination
     start_index = (current_page - 1) * PAGE_SIZE
     end_index = start_index + PAGE_SIZE
     paginated_tours = tours[start_index:end_index]
 
-    # Prepare the response text
     response_text = "📅 Here are your scheduled tours:\n\n"
     for i, tour in enumerate(paginated_tours, start=start_index + 1):
-        # Fetch property details using the property ID
-        property_details = get_property_details(tour['property'])
+        property_details = await get_property_details(tour['property'])
         property_name = property_details.get('name', 'Unknown Property') if property_details else 'Unknown Property'
+        response_text += f"{i}. 🏡 Property: *{property_name}* - Date: *{tour['tour_date']}* - Time: *{tour['tour_time']}*\n"
 
-        response_text += (
-            f"{i}. 🏡 Property: *{property_name}* - Date: *{tour['tour_date']}* - Time: *{tour['tour_time']}*\n"
-        )
-
-    # Create pagination buttons
     buttons = []
     if current_page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"list_tours:{current_page - 1}"))
@@ -511,7 +479,6 @@ async def list_tours(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"list_tours:{current_page + 1}"))
     keyboard = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    # Send the response
     if update.callback_query:
         await query.edit_message_text(
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
@@ -521,27 +488,19 @@ async def list_tours(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
         )
 
-
 async def list_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List favorite properties associated with the user with pagination."""
-    
-    # Determine the source of the update (callback query or message)
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
-        # Get the current page from the callback data or default to page 1
+        await query.answer()
         current_page = int(query.data.split(":")[1]) if ":" in query.data else 1
     else:
         telegram_id = str(update.message.from_user.id)
-        current_page = 1  # Default to the first page
+        current_page = 1
 
-    # Log the action
     logger.info(f"List favorites triggered for user {telegram_id} on page {current_page}")
-    
-
-    # Fetch the list of favorite properties for the user
-    favorites = get_user_favorites(telegram_id)
+    favorites = await get_user_favorites(telegram_id)
     
     if not favorites:
         message = "❤️ You have no favorite properties yet! Use the ❤️ button to add some."
@@ -551,21 +510,16 @@ async def list_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await update.message.reply_text(message)
         return
 
-    # Calculate pagination
     start_index = (current_page - 1) * PAGE_SIZE
     end_index = start_index + PAGE_SIZE
     paginated_favorites = favorites[start_index:end_index]
 
-    # Prepare the response text
     response_text = "🌟 Your Favorite Properties:\n\n"
     for i, favorite in enumerate(paginated_favorites, start=start_index + 1):
-        # Fetch property details using the property ID
-        property_details = get_property_details(favorite['property'])
+        property_details = await get_property_details(favorite['property'])
         property_name = property_details.get('name', 'Unknown Property') if property_details else 'Unknown Property'
-
         response_text += f"{i}. 🏡 Property: *{property_name}*\n"
 
-    # Create pagination buttons
     buttons = []
     if current_page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"list_favorites:{current_page - 1}"))
@@ -573,7 +527,6 @@ async def list_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"list_favorites:{current_page + 1}"))
     keyboard = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    # Send the response
     if update.callback_query:
         await query.edit_message_text(
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
@@ -583,28 +536,21 @@ async def list_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
         )
 
-
-
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List all registered users with pagination."""
-    
-    # Determine if update is from a callback query or message
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer()  # Acknowledge the callback query
-        # Get the current page from the callback data or default to page 1
+        await query.answer()
         current_page = int(query.data.split(":")[1]) if ":" in query.data else 1
     else:
         telegram_id = str(update.message.from_user.id)
-        current_page = 1  # Default to the first page
+        current_page = 1
 
     logger.info(f"List users triggered for user {telegram_id} on page {current_page}")
-
-   
-    # Fetch all users
-    users = get_non_user_accounts()
+    users = await get_non_user_accounts()
     total_users = len(users)
+    
     if not users:
         message = "There are no registered agents or owners."
         if update.callback_query:
@@ -613,24 +559,20 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             await update.message.reply_text(message)
         return
 
-    # Calculate pagination
     start_index = (current_page - 1) * PAGE_SIZE
     end_index = start_index + PAGE_SIZE
     paginated_users = users[start_index:end_index]
 
-    # Prepare the response text
     response_text = "👥 *Registered Agents and Owners:*\n\n"
     for i, user in enumerate(paginated_users, start=start_index + 1):
-        confirmed_properties = get_confirmed_user_properties(user['telegram_id'])
+        confirmed_properties = await get_confirmed_user_properties(user['telegram_id'])
         property_count = len(confirmed_properties)
-
         user_type_icon = "👤" if user["user_type"] == "agent" else "🏢"
         response_text += (
             f"{i}. {user_type_icon} *{user['full_name']}* - Type: *{user['user_type'].capitalize()}*\n"
             f"   🔑 Confirmed Properties: {property_count}\n"
         )
 
-    # Create pagination buttons
     buttons = []
     if current_page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"list_users:{current_page - 1}"))
@@ -638,7 +580,6 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"list_users:{current_page + 1}"))
     keyboard = InlineKeyboardMarkup([buttons]) if buttons else None
 
-    # Send the response
     if update.callback_query:
         await query.edit_message_text(
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
@@ -648,138 +589,96 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             response_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
         )
 
+async def handle_favorite_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle adding/removing properties from favorites."""
+    await update.callback_query.answer()
+    data = update.callback_query.data
 
-# Define available languages
-LANGUAGES = ["Amharic", "English"]
+    if data.startswith("make_favorite_"):
+        property_id = int(data.split("_")[2])
+        telegram_id = str(update.callback_query.from_user.id)
 
-async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles the /changelang command to allow users to choose a language."""
-    # Use the same keyboard (ReplyKeyboardMarkup) for both callback queries and messages
-    keyboard = [[LANGUAGES[0], LANGUAGES[1]]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        favorites = await get_user_favorites(telegram_id)
+        logger.info(f"User's favorites for {telegram_id}: {favorites}")
 
-    if update.callback_query:
-        query = update.callback_query
-        await query.answer()  # Acknowledge the callback query
+        property_details = await get_property_details(property_id)
+        property_name = property_details.get('name', 'Unknown Property') if property_details else 'Unknown Property'
 
-        # Send the same keyboard as a new message or edit the existing message
-        await query.edit_message_text(
-            "Please choose a language:", reply_markup=reply_markup
-        )
-    else:
-        # Send the keyboard in response to a command or message
-        await update.message.reply_text(
-            "Please choose a language:", reply_markup=reply_markup
-        )
+        favorite_id = None
+        for favorite in favorites:
+            if favorite['property'] == property_id:
+                favorite_id = favorite['id']
+                break
 
-
-async def handle_language_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles the user's language selection."""
-    user_choice = None
-
-    if update.callback_query:
-        # Extract the user's language choice from callback query data (if used)
-        query = update.callback_query
-        await query.answer()
-        user_choice = query.data.replace("lang_", "")  # Extract language choice
-
-    elif update.message:
-        # Extract the user's language choice from the message text
-        user_choice = update.message.text
-
-    # Handle the user's choice
-    if user_choice in LANGUAGES:
-        # Confirm the selection and remove the keyboard
-        await update.message.reply_text(
-            f"You have chosen {user_choice}.", reply_markup=ReplyKeyboardRemove()
-        )
-    # else:
-    #     # Invalid choice: Re-prompt the user with the same keyboard
-    #     await update.message.reply_text(
-    #         "Invalid choice. Please select a language using the buttons below."
-    #     )
-    #     await change_language(update, context)
-
-# Command handler to fetch all requests for admin
-async def list_requests(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """List all user requests for the admin that have not been responded to."""
-    admin_id = 1648265210  # Replace with your admin ID
-    
-    if update.message.from_user.id != admin_id:
-        await update.message.reply_text("You do not have permission to access this command.")
-        return
-    
-    try:
-        await update.message.chat.send_action(ChatAction.TYPING)
-        requests = get_all_requests()  # Make sure this function exists and works correctly
-        
-        # Filter requests where is_responded is False
-        pending_requests = [req for req in requests if not req['is_responded']]
-
-        if pending_requests:
-            message = "📨 *Unresponded Requests*\n\n"
-            for req in pending_requests:
-                # Escape special characters in the text to comply with MarkdownV2
-                request_id = str(req['id']).replace('.', '\\.').replace('-', '\\-').replace('_', '\\_')
-                user_id = str(req['user_id']).replace('-', '\\-')
-                additional_text = req['additional_text'].replace('.', '\\.').replace('-', '\\-').replace('_', '\\_')
-
-                message += (
-                    f"❓ *Request ID:* {request_id}\n"
-                    f"👤 *User ID:* {user_id}\n"
-                    f"📄 *Additional Text:* {additional_text}\n\n"
+        if favorite_id:
+            try:
+                response = await delete_favorite(favorite_id)
+                if response:
+                    await context.bot.send_message(
+                        chat_id=telegram_id,
+                        text=f"❌ The property *{property_name}* has been removed from your favorites."
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=telegram_id,
+                        text="❌ Failed to remove from favorites. Please try again later."
+                    )
+            except Exception as e:
+                logger.error(f"Failed to remove property from favorites: {e}")
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text="❌ Failed to remove from favorites. Please try again later."
                 )
-            
-            # Split the message into multiple parts if it exceeds Telegram's character limit (4096 characters)
-            if len(message) > 4096:
-                for i in range(0, len(message), 4096):
-                    await update.message.reply_text(message[i:i+4096], parse_mode='MarkdownV2')
-            else:
-                await update.message.reply_text(message, parse_mode='MarkdownV2')
         else:
-            await update.message.reply_text("No pending requests found.")
-    
-    except Exception as e:
-        # Log the error and notify the admin
-        await update.message.reply_text(f"An error occurred: {e}")
+            try:
+                response = await add_favorite(telegram_id, property_id)
+                if response:
+                    await context.bot.send_message(
+                        chat_id=telegram_id,
+                        text=f"🏡 The property *{property_name}* has been added to your favorites!"
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=telegram_id,
+                        text="❌ Failed to add to favorites. Please try again later."
+                    )
+            except Exception as e:
+                logger.error(f"Failed to add property to favorites: {e}")
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text="❌ Failed to add to favorites. Please try again later."
+                )
 
 async def live_agent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start the conversation to request a live agent."""
-    
-
     if update.callback_query:
         query = update.callback_query
         telegram_id = str(query.from_user.id)
-        await query.answer() 
+        await query.answer()
     else:
         telegram_id = str(update.message.from_user.id)
 
     logger.info(f"Live agent request triggered for user {telegram_id}")
 
-    
     if update.callback_query:
-        await query.edit_message_text("Use /live_agent to connect with a live agent:")
+        await query.edit_message_text("Please provide your name to connect with a live agent:")
     else:
         await update.message.reply_text("Please provide your name to connect with a live agent:")
 
     return LIVE_REQUEST
 
-
-# Conversation handler for requesting name
 async def live_agent_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle name input for live agent request."""
     context.user_data['name'] = update.message.text
     await update.message.reply_text("Please provide your phone number:")
     return LIVE_PHONE
 
-# Conversation handler for requesting phone number
 async def live_agent_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle phone input for live agent request."""
     context.user_data['phone'] = update.message.text
     await update.message.reply_text("Please provide your address:")
     return LIVE_ADDRESS
 
-# Conversation handler for requesting address
 async def live_agent_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle address input for live agent request."""
     context.user_data['address'] = update.message.text
@@ -796,8 +695,14 @@ async def live_agent_complete(update: Update, context: ContextTypes.DEFAULT_TYPE
     address = context.user_data.get('address')
     additional_text = context.user_data.get('additional_text')
 
-    
-    request = create_request(user_id=user_id, username=username, name=name, phone=phone, address=address, additional_text=additional_text)
+    request = await create_request({
+        'user_id': user_id,
+        'username': username,
+        'name': name,
+        'phone': phone,
+        'address': address,
+        'additional_text': additional_text
+    })
 
     if request:
         await update.message.reply_text("Your request has been submitted successfully. We will get back to you soon.")
@@ -812,14 +717,16 @@ async def live_agent_complete(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"*Address:* {address}\n\n"
             f"📄 *Additional Information:* {additional_text}"
         )
-        await context.bot.send_message(chat_id=admin_id, text=request_details, parse_mode='MarkdownV2')
-
+        await context.bot.send_message(
+            chat_id=admin_id,
+            text=request_details,
+            parse_mode='MarkdownV2'
+        )
     else:
         await update.message.reply_text("There was an error submitting your request. Please try again later.")
     
     return ConversationHandler.END
 
-# Command handler to start the respond process
 async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start the process to respond to a request."""
     admin_id = 1648265210  
@@ -831,25 +738,24 @@ async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Please enter the Request ID of the request you want to respond to:")
     return RESPOND_TO_REQUEST
 
-# Handle the request ID input for responding
 async def respond_request_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle the request ID input and fetch user details."""
     request_id = update.message.text
     context.user_data['request_id'] = request_id
 
-    # Fetch the request details using the request_id from the API
-    request_details = get_request_details(request_id)
-
+    request_details = await get_request_details(request_id)
     if request_details:
         user_id = request_details['user_id']
         context.user_data['user_id'] = user_id
-        await update.message.reply_text(f"Request found for user {request_details['name']} (User ID: {user_id}).\nPlease enter your response message:")
+        await update.message.reply_text(
+            f"Request found for user {request_details['name']} (User ID: {user_id}).\n"
+            "Please enter your response message:"
+        )
         return RESPONSE_MESSAGE
     else:
         await update.message.reply_text("Invalid Request ID. Please try again.")
         return ConversationHandler.END
 
-# Handle the response message input and send the message to the user
 async def send_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle the response message and send it to the user."""
     response_message = update.message.text
@@ -857,53 +763,94 @@ async def send_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     user_id = context.user_data.get('user_id')
     admin_id = update.message.from_user.id 
 
-   
-    message_sent = create_message(request_id=request_id, sender_id=admin_id, user_id=user_id, content=response_message)
+    message_sent = await create_message({
+        'request_id': request_id,
+        'sender_id': admin_id,
+        'user_id': user_id,
+        'content': response_message
+    })
     
-   
-    await update.message.reply_text(f"Message sent successfully to user {user_id}.")
-        
-   
-    try:
-        await context.bot.send_message(chat_id=user_id, text=response_message)
-    except Exception as e:
-        logging.error(f"Failed to send message to user {user_id}: {e}")
-        await update.message.reply_text(f"Failed to send message to user {user_id} on Telegram. Error: {e}")
-   
+    if message_sent:
+        await update.message.reply_text(f"Message sent successfully to user {user_id}.")
+        try:
+            await context.bot.send_message(chat_id=user_id, text=response_message)
+        except Exception as e:
+            logger.error(f"Failed to send message to user {user_id}: {e}")
+            await update.message.reply_text(
+                f"Failed to send message to user {user_id} on Telegram. Error: {e}"
+            )
+    else:
+        await update.message.reply_text("Failed to record the message. Please try again.")
     
     return ConversationHandler.END
 
+async def list_requests(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """List all user requests for the admin that have not been responded to."""
+    admin_id = 1648265210
+    
+    if update.message.from_user.id != admin_id:
+        await update.message.reply_text("You do not have permission to access this command.")
+        return
+    
+    try:
+        await update.message.chat.send_action(ChatAction.TYPING)
+        requests = await get_all_requests()
+        
+        pending_requests = [req for req in requests if not req['is_responded']]
 
-# Handler to process user messages and forward if needed
+        if pending_requests:
+            message = "📨 *Unresponded Requests*\n\n"
+            for req in pending_requests:
+                request_id = str(req['id']).replace('.', '\\.').replace('-', '\\-').replace('_', '\\_')
+                user_id = str(req['user_id']).replace('-', '\\-')
+                additional_text = req['additional_text'].replace('.', '\\.').replace('-', '\\-').replace('_', '\\_')
+
+                message += (
+                    f"❓ *Request ID:* {request_id}\n"
+                    f"👤 *User ID:* {user_id}\n"
+                    f"📄 *Additional Text:* {additional_text}\n\n"
+                )
+            
+            if len(message) > 4096:
+                for i in range(0, len(message), 4096):
+                    await update.message.reply_text(message[i:i+4096], parse_mode='MarkdownV2')
+            else:
+                await update.message.reply_text(message, parse_mode='MarkdownV2')
+        else:
+            await update.message.reply_text("No pending requests found.")
+    
+    except Exception as e:
+        await update.message.reply_text(f"An error occurred: {e}")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle incoming messages from users."""
     user_id = update.message.from_user.id
     user_message = update.message.text
     
     if user_id in ADMINS:
-        await update.message.reply_text("You are an admin. Use /requests to view pending requests and use /respond to respond to a request.")
+        await update.message.reply_text(
+            "You are an admin. Use /requests to view pending requests and use /respond to respond to a request."
+        )
         return
 
-   
-    messages = get_all_messages()
-    print(messages) 
-
-    
+    messages = await get_all_messages()
     open_message = None
     for msg in messages:
         if int(msg['user_id']) == user_id:
             open_message = msg
             break
 
-    
     if open_message:
         request_id = open_message['request']
         sender_id = open_message['sender_id']
 
-        
-        create_message(request_id=request_id, sender_id=sender_id, user_id=user_id, content=user_message)
+        await create_message({
+            'request_id': request_id,
+            'sender_id': sender_id,
+            'user_id': user_id,
+            'content': user_message
+        })
 
-        
         await context.bot.send_message(
             chat_id=sender_id,
             text=f"Message from user {user_id} (Request ID: {request_id}):\n\n{user_message}"
@@ -911,62 +858,44 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("Your message has been forwarded to the appropriate sender.")
     else:
         await update.message.reply_text("No open messages found for you. Use /live_agent command to make a new request.")
-        
-        
-async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()  # Acknowledge the callback
-    data = query.data
 
-    # Log which button was clicked and the user's Telegram ID
+async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle all main menu callback queries."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
     telegram_id = query.from_user.id
     logger.info(f"User {telegram_id} clicked on button: {data}")
 
-    # Route based on the prefix of the callback data
     if data.startswith("make_favorite_"):
-        logger.info(f"Handling 'Make Favorite' for user {telegram_id}")
         await handle_favorite_request(update, context)
     elif data == "add_property":
-        logger.info(f"Handling 'Add Property' for user {telegram_id}")
         await addproperty(update, context)
     elif data == "upgrade_account":
-        logger.info(f"Handling 'Upgrade Account' for user {telegram_id}")
         await upgrade(update, context)
     elif data == "view_profile":
-        logger.info(f"Handling 'View Profile' for user {telegram_id}")
         await profile(update, context)
     elif data == "list_properties":
-        logger.info(f"Handling 'List Properties' for user {telegram_id}")
         await list_properties(update, context)
     elif data == "list_favorites":
-        logger.info(f"Handling 'List Favorites' for user {telegram_id}")
         await list_favorites(update, context)
     elif data == "list_tours":
-        logger.info(f"Handling 'List Tours' for user {telegram_id}")
         await list_tours(update, context)
     elif data == "live_agent":
-        logger.info(f"Handling 'Live Agent' for user {telegram_id}")
         await live_agent(update, context)
     elif data == "change_language":
-        logger.info(f"Handling 'Change Language' for user {telegram_id}")
         await change_language(update, context)
     elif data.startswith("list_users"):
-        logger.info(f"Handling pagination for 'List Users' for user {telegram_id}")
         await list_users(update, context)
     elif data.startswith("list_properties"):
-        logger.info(f"Handling pagination for 'List Properties' for user {telegram_id}")
         await list_properties(update, context)
     elif data.startswith("list_tours"):
-        logger.info(f"Handling pagination for 'List Tours' for user {telegram_id}")
         await list_tours(update, context)
     elif data.startswith("list_favorites"):
-        logger.info(f"Handling pagination for 'List Favorites' for user {telegram_id}")
         await list_favorites(update, context)
-
     else:
         logger.warning(f"Unknown action {data} received from user {telegram_id}")
         await query.edit_message_text("Unknown action. Please try again.")
-
     
 async def bot_tele(text):
     application = Application.builder().token(os.getenv('TOKEN')).persistence(persistence).build()
