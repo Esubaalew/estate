@@ -101,7 +101,7 @@ def post_property_to_telegram(sender, instance, **kwargs):
                 InlineKeyboardButton("Make Favorite", callback_data=f"make_favorite_{instance.id}")
             ],
             [
-                InlineKeyboardButton("View Property", url=f"https://estate-show.onrender.com/property/{instance.id}")  # Direct URL to property page
+                InlineKeyboardButton("View Property", url=f"https://estate-r22a.onrender.com/property/{instance.id}")  # Direct URL to property page
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
