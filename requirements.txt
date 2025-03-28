@@ -5,3 +5,4 @@ whitenoise==5.3.0
 gunicorn
 requests
 django-unfold
+aiohttp
