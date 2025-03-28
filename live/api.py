@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = 'https://estate.4gmobiles.com/live'
+BASE_URL = 'https://estate-r22a.onrender.com/live'
 
 
 # Add a new request
